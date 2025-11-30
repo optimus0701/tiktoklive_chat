@@ -3,6 +3,7 @@ const http = require("http");
 const { Server } = require("socket.io");
 const { WebcastPushConnection } = require("tiktok-live-connector");
 const { SignConfig } = require("tiktok-live-connector");
+require("dotenv").config();
 
 const path = require("path");
 // Thêm thư viện google-tts-api
@@ -13,9 +14,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-SignConfig.apiKey =
-  "euler_YmRjMjRkNTgzNDU5MmFjMjM1Mjc3ZDZlZjVjZWZiNWVlODhkZGRkMWU4YzczOTYzOWZiMjY3";
-
+SignConfig.apiKey = process.env.TIKTOK_SIGN_API_KEY;
 // Serve file static từ thư mục public
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -68,8 +67,8 @@ io.on("connection", (socket) => {
         app_language: "vi-VN",
         device_platform: "web_pc",
       },
-      sessionId: "f19ca4dbe83a8f0f4b637af3eeea7879",
-      ttTargetIdc: "alisg",
+      sessionId: process.env.SESSION_ID,
+      ttTargetIdc: process.env.TT_TARGET_IDC,
     });
 
     tiktokConnection
