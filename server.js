@@ -2,8 +2,8 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const { WebcastPushConnection } = require("tiktok-live-connector");
-import { SignConfig } from 'tiktok-live-connector';
-import { GetRateLimits } from '@eulerstream/euler-api-sdk';
+const { SignConfig } = require('tiktok-live-connector');
+
 
 const path = require("path");
 // Thêm thư viện google-tts-api
