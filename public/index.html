@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TikTok Live Chat Overlay</title>
+    <!-- Sử dụng đường dẫn local từ server nodejs -->
+    <script src="/socket.io/socket.io.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+
+        :root {
+            --bg-color: #121212;
+            --text-color: #ffffff;
+            --chat-bg: rgba(22, 24, 35, 0.85);
+            --accent-color: #fe2c55;
+            --gift-color: #25f4ee;
+            --like-color: #ff4081;
+            --follow-color: #2b72e2;
+            --share-color: #2be265;
+            --member-color: #9e9e9e; /* Màu cho sự kiện tham gia */
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        /* --- Control Panel --- */
+        #controls {
+            padding: 15px;
+            background: #1f1f1f;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 100;
+            border-bottom: 1px solid #333;
+            max-height: 50vh;
+            overflow-y: auto;
+        }
+
+        .input-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap; /* Cho phép xuống dòng nếu màn hình nhỏ */
+        }
+
+        .filter-group, .tts-group {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            align-items: center;
+            background: #2a2a2a;
+            padding: 10px;
+            border-radius: 6px;
+        }
+
+        .section-title {
+            width: 100%;
+            font-size: 0.85em;
+            color: #888;
+            text-transform: uppercase;
+            font-weight: 700;
+            margin-bottom: 5px;
+        }
+
+        .filter-label {
+            font-size: 0.9em;
+            color: #ccc;
+            margin-right: 5px;
+        }
+
+        label {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            cursor: pointer;
+            user-select: none;
+            font-size: 0.9em;
+        }
+        
+        label input[type="checkbox"] {
+            accent-color: var(--accent-color);
+        }
+
+        input[type="text"], input[type="password"], select {
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #444;
+            background: #2a2a2a;
+            color: white;
+            flex-grow: 1;
+        }
+
+        select {
+            cursor: pointer;
+        }
+
+        button {
+            padding: 10px 20px;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            white-space: nowrap;
+        }
+
+        button:hover { opacity: 0.9; }
+        button:disabled { background: #555; cursor: not-allowed; }
+
+        #status {
+            color: #888;
+            font-size: 0.9em;
+            margin-top: 5px;
+        }
+
+        .api-note {
+            font-size: 0.8em;
+            color: #ffab40;
+            margin-top: 3px;
+            font-style: italic;
+        }
+
+        /* --- Chat Container --- */
+        #chat-container {
+            flex-grow: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            scroll-behavior: smooth;
+        }
+
+        #chat-container::-webkit-scrollbar { width: 6px; }
+        #chat-container::-webkit-scrollbar-thumb { background: #444; border-radius: 3px; }
+
+        /* --- Filtering Logic (CSS) --- */
+        #chat-container.hide-chat .type-chat { display: none !important; }
+        #chat-container.hide-gift .type-gift { display: none !important; }
+        #chat-container.hide-like .type-like { display: none !important; }
+        #chat-container.hide-follow .type-follow { display: none !important; }
+        #chat-container.hide-share .type-share { display: none !important; }
+        #chat-container.hide-member .type-member { display: none !important; }
+
+        /* --- Message Styles --- */
+        .message-item {
+            background: var(--chat-bg);
+            padding: 8px 12px;
+            border-radius: 12px;
+            animation: fadeIn 0.3s ease;
+            max-width: 100%;
+            word-wrap: break-word;
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 1px solid #555;
+            flex-shrink: 0;
+        }
+
+        .gift-img {
+            width: 40px;
+            height: 40px;
+            object-fit: contain;
+            margin-left: 5px;
+            vertical-align: middle;
+        }
+
+        .content {
+            flex: 1;
+        }
+
+        .username {
+            font-weight: 700;
+            color: #adadad;
+            font-size: 0.9rem;
+            margin-bottom: 2px;
+        }
+
+        .text {
+            font-size: 1rem;
+            line-height: 1.4;
+        }
+
+        /* Colors by type */
+        .type-gift {
+            border-left: 4px solid var(--gift-color);
+            background: linear-gradient(90deg, rgba(37, 244, 238, 0.1) 0%, rgba(0,0,0,0) 100%);
+        }
+        .type-gift .username { color: var(--gift-color); }
+        .gift-info { font-weight: 800; color: var(--gift-color); }
+
+        .type-like {
+            opacity: 0.8;
+            font-size: 0.85rem;
+            padding: 4px 12px;
+            background: transparent;
+            box-shadow: none;
+        }
+        .type-like .username { color: var(--like-color); display: inline; }
+        .type-like .text { color: var(--like-color); display: inline; }
+
+        .type-follow {
+            background: rgba(43, 114, 226, 0.15);
+            border-left: 4px solid var(--follow-color);
+        }
+        .type-follow .username { color: var(--follow-color); }
+
+        .type-share {
+            background: rgba(43, 226, 101, 0.15);
+            border-left: 4px solid var(--share-color);
+        }
+        .type-share .username { color: var(--share-color); }
+
+        /* Style cho Member Join */
+        .type-member {
+            background: rgba(158, 158, 158, 0.1);
+            border-left: 4px solid var(--member-color);
+            opacity: 0.8;
+        }
+        .type-member .username { color: var(--member-color); }
+        .type-member .text { color: #bbb; font-style: italic; font-size: 0.9rem; }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* --- OBS Overlay Mode --- */
+        body.overlay-mode {
+            background-color: transparent !important;
+        }
+        body.overlay-mode #controls {
+            display: none !important;
+        }
+        body.overlay-mode #chat-container {
+            justify-content: flex-end; 
+            overflow: hidden; 
+        }
+        body.overlay-mode .message-item {
+            background: rgba(0, 0, 0, 0.6);
+            text-shadow: 1px 1px 2px black;
+            color: white;
+            font-weight: 600;
+        }
+        body.overlay-mode .type-like {
+            background: rgba(255, 64, 129, 0.2);
+            padding: 4px 8px;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <div id="controls">
+        <div class="input-group">
+            <div style="flex:1; display: flex; flex-direction: column; gap: 5px;">
+                <!-- Username -->
+                <input type="text" id="usernameInput" placeholder="Nhập TikTok @username (ví dụ: datvilla94)" oninput="saveSettings()">
+                
+                <div id="status">Trạng thái: Chưa kết nối</div>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 5px;">
+                <button onclick="connectToLive()" style="height: 100%;">Kết nối</button>
+                <button onclick="openOverlay()" style="background: #333;">Mở Link Overlay</button>
+            </div>
+        </div>
+        
+        <div class="filter-group">
+            <div class="section-title">Bộ Lọc Hiển Thị</div>
+            <label><input type="checkbox" id="chkChat" checked onchange="updateFilters(); saveSettings()"> Chat</label>
+            <label><input type="checkbox" id="chkGift" checked onchange="updateFilters(); saveSettings()"> Quà tặng</label>
+            <label><input type="checkbox" id="chkLike" checked onchange="updateFilters(); saveSettings()"> Thả tim</label>
+            <label><input type="checkbox" id="chkFollow" checked onchange="updateFilters(); saveSettings()"> Follow</label>
+            <label><input type="checkbox" id="chkShare" checked onchange="updateFilters(); saveSettings()"> Share</label>
+            <label><input type="checkbox" id="chkMember" checked onchange="updateFilters(); saveSettings()"> Tham gia</label>
+        </div>
+
+        <div class="tts-group">
+            <div class="section-title">Cài Đặt Đọc Voice (Google TTS - Server)</div>
+            <label><input type="checkbox" id="chkEnableTTS" onchange="saveSettings()"> Bật Đọc</label>
+            <label><input type="checkbox" id="chkTTSChat" onchange="saveSettings()"> Đọc Chat</label>
+            <label><input type="checkbox" id="chkTTSGift" checked onchange="saveSettings()"> Đọc Quà</label>
+            
+            <div style="width: 100%; border-top: 1px solid #444; padding-top: 10px; margin-top: 5px;">
+                <label style="color: #ffab40;">
+                    <input type="checkbox" id="chkMuteLocal" onchange="saveSettings()"> Tắt tiếng ở Tab này (để tránh vọng âm khi mở Overlay)
+                </label>
+            </div>
+            
+            <div style="width: 100%; margin-top: 10px;">
+                <div class="api-note" style="color:#2be265; font-style: normal;">
+                    ✅ <b>Google TTS Server-Side:</b> URL được tạo từ Server để xử lý văn bản dài tốt hơn và <b>Fix lỗi CORB</b>.
+                </div>
+            </div>
+
+            <div style="width: 100%; margin-top: 5px;">
+                <div class="filter-label" style="display:block; margin-bottom:5px;">Mẫu câu đọc quà tặng:</div>
+                <input type="text" id="giftTemplate" value="{nick} đã tặng {count} {gift}" placeholder="Ví dụ: {nick} vừa gửi {count} cái {gift}" oninput="saveSettings()">
+            </div>
+            
+            <div style="width: 100%; margin-top: 10px; display:flex; gap:10px;">
+                <button onclick="testVoice()" style="flex:1; padding: 8px;">Test Thử Giọng</button>
+                <button onclick="testGift()" style="flex:1; padding: 8px; background-color: #2be265; color: #000;">Test Tặng Quà</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="chat-container">
+        <div class="message-item type-chat">
+            <div class="content">
+                <div class="username">Hệ thống</div>
+                <div class="text">Chào mừng! Nhập ID và nhấn Kết nối.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let socket;
+        try {
+            socket = io();
+        } catch (e) {
+            console.error("Socket error", e);
+            document.getElementById('status').innerText = "Lỗi: Không tìm thấy Socket.io";
+        }
+
+        const chatContainer = document.getElementById('chat-container');
+        const statusDiv = document.getElementById('status');
+        const urlParams = new URLSearchParams(window.location.search);
+        
+        const checkboxes = {
+            chat: document.getElementById('chkChat'),
+            gift: document.getElementById('chkGift'),
+            like: document.getElementById('chkLike'),
+            follow: document.getElementById('chkFollow'),
+            share: document.getElementById('chkShare'),
+            member: document.getElementById('chkMember')
+        };
+
+        const ttsConfig = {
+            enable: document.getElementById('chkEnableTTS'),
+            chat: document.getElementById('chkTTSChat'),
+            gift: document.getElementById('chkTTSGift'),
+            giftTemplate: document.getElementById('giftTemplate'),
+            muteLocal: document.getElementById('chkMuteLocal')
+        };
+        
+        const ttsQueue = [];
+        let isSpeaking = false;
+        
+        // --- QUẢN LÝ INITIAL PHASE (LỌC TIN NHẮN CŨ) ---
+        let isInitialPhase = false;
+        let lastInitialChatMessage = null; // Chỉ lưu tin nhắn cuối cùng của đợt đầu
+        const INITIAL_PHASE_DURATION = 3000; // 3 giây đầu tiên để lọc
+
+        // --- QUẢN LÝ SPAM (LỌC TIN TRÙNG) ---
+        let lastChatUser = "";
+        let lastChatContent = "";
+
+        const emojiMap = {
+            '❤️': 'tim', '🧡': 'tim cam', '💛': 'tim vàng', '💚': 'tim xanh', '💙': 'tim xanh dương', '💜': 'tim tím',
+            '🖤': 'tim đen', '🤍': 'tim trắng', '🤎': 'tim nâu', '💔': 'tim vỡ', '❣️': 'tim', '💕': 'tim',
+            '🌹': 'hoa hồng', '💐': 'bó hoa', '😂': 'cười lớn', '🤣': 'cười lăn lộn', '😭': 'khóc', 
+            '👍': 'lai', '🙏': 'cầu nguyện', '🎁': 'hộp quà', '🔥': 'cháy quá'
+        };
+
+        function sanitizeTextForTTS(text) {
+            if (!text) return "";
+            let processed = text;
+            for (const [emoji, desc] of Object.entries(emojiMap)) {
+                processed = processed.replaceAll(emoji, ` ${desc} `);
+            }
+            processed = processed.replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}]/gu, '');
+            return processed.trim();
+        }
+
+        function updateFilters() {
+            for (const [key, el] of Object.entries(checkboxes)) {
+                if (el.checked) chatContainer.classList.remove(`hide-${key}`);
+                else chatContainer.classList.add(`hide-${key}`);
+            }
+        }
+
+        function initSettingsFromUrl() {
+            for (const key of Object.keys(checkboxes)) {
+                const paramValue = urlParams.get(`show${key.charAt(0).toUpperCase() + key.slice(1)}`);
+                if (paramValue === '0' || paramValue === 'false') {
+                    if (checkboxes[key]) checkboxes[key].checked = false;
+                }
+            }
+            if (urlParams.get('tts') === '1') ttsConfig.enable.checked = true;
+            if (urlParams.get('ttsChat') === '1') ttsConfig.chat.checked = true;
+            if (urlParams.get('ttsGift') === '0') ttsConfig.gift.checked = false;
+            
+            const templateParam = urlParams.get('giftTemplate');
+            if (templateParam) ttsConfig.giftTemplate.value = decodeURIComponent(templateParam);
+
+            updateFilters();
+        }
+
+        // Cập nhật hàm speak để hỗ trợ Priority (ưu tiên)
+        function speak(text, isPriority = false) {
+            if (!ttsConfig.enable.checked) return;
+            if (!isOverlay && ttsConfig.muteLocal.checked) {
+                return;
+            }
+            const cleanText = sanitizeTextForTTS(text);
+            if(cleanText) {
+                if (isPriority) {
+                    // Nếu là ưu tiên (quà tặng), chèn vào đầu hàng đợi
+                    ttsQueue.unshift(cleanText);
+                } else {
+                    // Nếu bình thường, chèn vào cuối
+                    ttsQueue.push(cleanText);
+                }
+                processTTSQueue();
+            }
+        }
+
+        function processTTSQueue() {
+            if (isSpeaking || ttsQueue.length === 0) return;
+            const text = ttsQueue.shift();
+            isSpeaking = true;
+            if(socket) {
+                socket.emit('request-tts', text);
+            } else {
+                isSpeaking = false;
+            }
+        }
+
+        if (socket) {
+            socket.on('tts-response', async (audioParts) => {
+                if (audioParts && audioParts.length > 0) {
+                    try {
+                        for (const part of audioParts) {
+                            await playAudio("data:audio/mp3;base64," + part.base64);
+                        }
+                    } catch(e) {
+                        console.error("Playback error:", e);
+                    }
+                }
+                isSpeaking = false;
+                setTimeout(processTTSQueue, 300);
+            });
+        }
+
+        function playAudio(url) {
+            return new Promise((resolve) => {
+                const audio = new Audio(url);
+                audio.onended = () => resolve();
+                audio.onerror = (e) => {
+                    console.error("Audio Load Error", e);
+                    resolve(); 
+                };
+                audio.play().catch((e) => {
+                    console.error("Autoplay Error", e);
+                    resolve();
+                });
+            });
+        }
+        
+        function testVoice() {
+            if (ttsConfig.enable.checked) {
+                ttsQueue.length = 0; 
+                isSpeaking = false;
+                const longText = "Xin chào, đây là tính năng đọc giọng chị Google được xử lý từ Server.";
+                speak(longText);
+            } else {
+                alert("Vui lòng tích chọn 'Bật Đọc' trước.");
+            }
+        }
+
+        function testGift() {
+            const mockData = {
+                nickname: "Người Dùng Test",
+                giftName: "Hoa Hồng",
+                repeatCount: 1,
+                profilePictureUrl: "https://p16-sign-va.tiktokcdn.com/tos-maliva-avt-0068/7086360875734564869~c5_100x100.jpeg",
+                giftPictureUrl: "https://p19-webcast.tiktokcdn.com/img/maliva/webcast-va/Rose_0525~tplv-obj.png",
+                extendedGiftInfo: { icon: { url_list: ["https://p19-webcast.tiktokcdn.com/img/maliva/webcast-va/Rose_0525~tplv-obj.png"] } }
+            };
+            handleGiftEvent(mockData);
+        }
+
+        const isOverlay = urlParams.get('overlay') === 'true';
+        const savedUser = urlParams.get('user');
+
+        function saveSettings() {
+            if (isOverlay) return; 
+            localStorage.setItem('tiktok_username', document.getElementById('usernameInput').value);
+            localStorage.setItem('gift_template', document.getElementById('giftTemplate').value);
+            for (const [key, el] of Object.entries(checkboxes)) {
+                localStorage.setItem('chk_' + key, el.checked);
+            }
+            localStorage.setItem('tts_enable', ttsConfig.enable.checked);
+            localStorage.setItem('tts_chat', ttsConfig.chat.checked);
+            localStorage.setItem('tts_gift', ttsConfig.gift.checked);
+            localStorage.setItem('tts_mute_local', ttsConfig.muteLocal.checked);
+        }
+
+        function loadSettings() {
+            if (isOverlay) return; 
+            const savedUser = localStorage.getItem('tiktok_username');
+            if (savedUser) document.getElementById('usernameInput').value = savedUser;
+            
+            const savedTemplate = localStorage.getItem('gift_template');
+            if (savedTemplate) document.getElementById('giftTemplate').value = savedTemplate;
+
+            for (const [key, el] of Object.entries(checkboxes)) {
+                const saved = localStorage.getItem('chk_' + key);
+                if (saved !== null) el.checked = (saved === 'true');
+            }
+            if (localStorage.getItem('tts_enable') !== null) ttsConfig.enable.checked = (localStorage.getItem('tts_enable') === 'true');
+            if (localStorage.getItem('tts_chat') !== null) ttsConfig.chat.checked = (localStorage.getItem('tts_chat') === 'true');
+            if (localStorage.getItem('tts_gift') !== null) ttsConfig.gift.checked = (localStorage.getItem('tts_gift') === 'true');
+            if (localStorage.getItem('tts_mute_local') !== null) ttsConfig.muteLocal.checked = (localStorage.getItem('tts_mute_local') === 'true');
+            updateFilters();
+        }
+
+        window.addEventListener('storage', (event) => {
+            if (event.key && event.key.startsWith('chk_')) {
+                const key = event.key.replace('chk_', '');
+                if (checkboxes[key]) {
+                    checkboxes[key].checked = (event.newValue === 'true');
+                    updateFilters();
+                }
+            }
+        });
+
+        loadSettings();
+        initSettingsFromUrl();
+
+        if (isOverlay) {
+            document.body.classList.add('overlay-mode');
+            if (savedUser && socket) {
+                socket.emit('join-room', { username: savedUser }); 
+            }
+        }
+
+        function connectToLive() {
+            if (!socket) return alert("Lỗi kết nối Server Socket.io");
+            const username = document.getElementById('usernameInput').value;
+            if (!username) return alert('Vui lòng nhập username!');
+            
+            if (ttsConfig.enable.checked) {
+                speak("Bắt đầu kết nối.");
+            }
+
+            statusDiv.innerText = `Đang kết nối tới ${username}...`;
+            
+            socket.emit('join-room', username);
+        }
+
+        function openOverlay() {
+            const username = document.getElementById('usernameInput').value;
+            if (!username) return alert('Vui lòng nhập username trước!');
+            
+            ttsConfig.muteLocal.checked = true;
+            saveSettings();
+
+            let params = `&user=${username}`;
+            for (const [key, el] of Object.entries(checkboxes)) {
+                const capKey = key.charAt(0).toUpperCase() + key.slice(1);
+                params += `&show${capKey}=${el.checked ? '1' : '0'}`;
+            }
+            params += `&tts=${ttsConfig.enable.checked ? '1' : '0'}`;
+            params += `&ttsChat=${ttsConfig.chat.checked ? '1' : '0'}`;
+            params += `&ttsGift=${ttsConfig.gift.checked ? '1' : '0'}`;
+            params += `&giftTemplate=${encodeURIComponent(ttsConfig.giftTemplate.value)}`;
+            
+            const url = `${window.location.origin}/?overlay=true${params}`;
+            window.open(url, 'TikTokOverlay', 'width=400,height=600,menubar=no,toolbar=no,location=no,status=no');
+        }
+
+        if (socket) {
+            // Lắng nghe trạng thái kết nối
+            socket.on('connection-status', (res) => {
+                if (res.status === 'connected') {
+                    statusDiv.innerText = `Đã kết nối! Room ID: ${res.roomId}`;
+                    statusDiv.style.color = '#4caf50';
+                    addSystemMessage(`Đã kết nối thành công tới Live!`);
+                    speak("Kết nối thành công");
+
+                    // BẮT ĐẦU PHA INITIAL: Trong 3 giây đầu, chỉ lấy chat cuối cùng
+                    isInitialPhase = true;
+                    lastInitialChatMessage = null;
+                    setTimeout(() => {
+                        isInitialPhase = false;
+                        if (lastInitialChatMessage) {
+                            // Đọc tin nhắn cuối cùng đã lưu
+                            speak(lastInitialChatMessage);
+                            lastInitialChatMessage = null;
+                        }
+                    }, INITIAL_PHASE_DURATION);
+
+                } else {
+                    statusDiv.innerText = `Lỗi: ${res.message}`;
+                    statusDiv.style.color = '#f44336';
+                    addSystemMessage(`Lỗi: ${res.message}`);
+                    speak("Kết nối thất bại");
+                }
+            });
+
+            socket.on('tiktok-event', (event) => {
+                const data = event.data;
+                if (event.type === 'chat') {
+                    addMessage(data.nickname, data.comment, data.profilePictureUrl, 'chat');
+                    if (ttsConfig.chat.checked) {
+                        const textToRead = `${data.nickname}: ${data.comment}`;
+                        
+                        // XỬ LÝ INITIAL PHASE CHO CHAT
+                        if (isInitialPhase) {
+                            // Nếu đang trong giai đoạn đầu, chỉ cập nhật tin nhắn cuối cùng, chưa đọc ngay
+                            lastInitialChatMessage = textToRead;
+                        } else {
+                            // XỬ LÝ SPAM: Bỏ qua nếu cùng người và cùng nội dung liên tiếp
+                            if (lastChatUser === data.nickname && lastChatContent === data.comment) {
+                                // console.log('Spam detected, skipping TTS');
+                            } else {
+                                // Bình thường: Đọc luôn và cập nhật cache
+                                speak(textToRead);
+                                lastChatUser = data.nickname;
+                                lastChatContent = data.comment;
+                            }
+                        }
+                    }
+                } 
+                else if (event.type === 'gift') handleGiftEvent(data);
+                else if (event.type === 'like') addMessage(data.nickname, `đã thích livestream ❤️`, data.profilePictureUrl, 'like');
+                else if (event.type === 'follow') addMessage(data.nickname, `đã follow chủ phòng ➕`, data.profilePictureUrl, 'follow');
+                else if (event.type === 'share') addMessage(data.nickname, `đã chia sẻ livestream ↗️`, data.profilePictureUrl, 'share');
+                else if (event.type === 'member') addMessage(data.nickname, `đã tham gia livestream`, data.profilePictureUrl, 'member');
+            });
+        }
+
+        function handleGiftEvent(data) {
+            let giftImgUrl = null;
+            if (data.extendedGiftInfo && data.extendedGiftInfo.icon && data.extendedGiftInfo.icon.url_list) {
+                giftImgUrl = data.extendedGiftInfo.icon.url_list[0];
+            } else if (data.giftPictureUrl) {
+                giftImgUrl = data.giftPictureUrl;
+            }
+
+            let giftDisplayHtml = `đã gửi ${data.repeatCount}x ${data.giftName}`;
+            if (giftImgUrl) {
+                giftDisplayHtml += ` <img src="${giftImgUrl}" class="gift-img" onerror="this.style.display='none'">`;
+            } else {
+                giftDisplayHtml += ` 🎁`;
+            }
+
+            addMessage(data.nickname, giftDisplayHtml, data.profilePictureUrl, 'gift');
+            
+            if (ttsConfig.gift.checked) {
+                let ttsText = ttsConfig.giftTemplate.value;
+                ttsText = ttsText.replace(/{nick}/g, data.nickname)
+                                 .replace(/{count}/g, data.repeatCount)
+                                 .replace(/{gift}/g, data.giftName);
+                // QUAN TRỌNG: Gọi speak với tham số true để ƯU TIÊN (chèn lên đầu hàng đợi)
+                speak(ttsText, true);
+            }
+        }
+
+        function addMessage(nickname, htmlContent, avatarUrl, type) {
+            const div = document.createElement('div');
+            div.className = `message-item type-${type}`;
+            const imgUrl = avatarUrl || 'https://p16-sign-va.tiktokcdn.com/tos-maliva-avt-0068/7086360875734564869~c5_100x100.jpeg'; 
+            
+            div.innerHTML = `
+                <img src="${imgUrl}" class="avatar" onerror="this.src='https://via.placeholder.com/32'">
+                <div class="content">
+                    <div class="username">${nickname}</div>
+                    <div class="text ${type === 'gift' ? 'gift-info' : ''}">${htmlContent}</div>
+                </div>
+            `;
+            chatContainer.appendChild(div);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+            if (chatContainer.children.length > 100) chatContainer.removeChild(chatContainer.children[0]);
+        }
+
+        function addSystemMessage(text) {
+            const div = document.createElement('div');
+            div.className = 'message-item';
+            div.style.background = '#333';
+            div.innerHTML = `<div class="content"><div class="text" style="color:#bbb"><i>${text}</i></div></div>`;
+            chatContainer.appendChild(div);
+            chatContainer.scrollTop = chatContainer.scrollHeight;
+        }
+    </script>
+</body>
+</html>

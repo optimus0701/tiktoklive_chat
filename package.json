@@ -1,0 +1,19 @@
+{
+  "name": "tiktok-live-overlay",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "express": "^5.1.0",
+    "google-tts-api": "^2.0.2",
+    "socket.io": "^4.8.1",
+    "tiktok-live-connector": "^2.1.0"
+  }
+}
