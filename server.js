@@ -65,7 +65,8 @@ io.on("connection", (socket) => {
         app_language: "vi-VN",
         device_platform: "web_pc",
       },
-      sessionId: "f19ca4dbe83a8f0f4b637af3eeea7879"
+      sessionId: "f19ca4dbe83a8f0f4b637af3eeea7879",
+      ttTargetIdc: "alisg"
     });
 
     tiktokConnection
