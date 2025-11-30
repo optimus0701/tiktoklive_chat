@@ -2,6 +2,9 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const { WebcastPushConnection } = require("tiktok-live-connector");
+import { SignConfig } from 'tiktok-live-connector';
+import { GetRateLimits } from '@eulerstream/euler-api-sdk';
+
 const path = require("path");
 // Thêm thư viện google-tts-api
 // Bạn cần chạy: npm install google-tts-api
@@ -10,6 +13,8 @@ const googleTTS = require("google-tts-api");
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
+
+SignConfig.apiKey = 'euler_YmRjMjRkNTgzNDU5MmFjMjM1Mjc3ZDZlZjVjZWZiNWVlODhkZGRkMWU4YzczOTYzOWZiMjY3';
 
 // Serve file static từ thư mục public
 app.use(express.static(path.join(__dirname, "public")));
