@@ -2,8 +2,7 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const { WebcastPushConnection } = require("tiktok-live-connector");
-const { SignConfig } = require('tiktok-live-connector');
-
+const { SignConfig } = require("tiktok-live-connector");
 
 const path = require("path");
 // Thêm thư viện google-tts-api
@@ -14,7 +13,8 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-SignConfig.apiKey = 'euler_YmRjMjRkNTgzNDU5MmFjMjM1Mjc3ZDZlZjVjZWZiNWVlODhkZGRkMWU4YzczOTYzOWZiMjY3';
+SignConfig.apiKey =
+  "euler_YmRjMjRkNTgzNDU5MmFjMjM1Mjc3ZDZlZjVjZWZiNWVlODhkZGRkMWU4YzczOTYzOWZiMjY3";
 
 // Serve file static từ thư mục public
 app.use(express.static(path.join(__dirname, "public")));
@@ -47,19 +47,17 @@ io.on("connection", (socket) => {
   });
 
   // Lắng nghe sự kiện người dùng nhập Username từ frontend
-  socket.on("join-room", (tiktokUsername) => {
-    if (!tiktokUsername) return;
+  socket.on("join-room", (data) => {
+    // FIX: Đảm bảo lấy đúng username dù client gửi String hay Object
+    const tiktokUsername =
+      typeof data === "object" && data.username ? data.username : data;
 
-    console.log(`Đang kết nối tới: ${tiktokUsername}`);
-
-    if (tiktokConnection) {
-      try {
-        tiktokConnection.disconnect();
-      } catch (e) {
-        console.error("Lỗi ngắt kết nối cũ:", e);
-      }
+    if (!tiktokUsername || typeof tiktokUsername !== "string") {
+      console.log("Username không hợp lệ:", tiktokUsername);
+      return;
     }
 
+    console.log(`Đang kết nối tới: ${tiktokUsername}`);
     // Cập nhật cấu hình: Tối ưu hóa kết nối
     tiktokConnection = new WebcastPushConnection(tiktokUsername, {
       processInitialData: false, // QUAN TRỌNG: Bỏ qua các tin nhắn cũ/lịch sử khi vừa kết nối
@@ -71,7 +69,7 @@ io.on("connection", (socket) => {
         device_platform: "web_pc",
       },
       sessionId: "f19ca4dbe83a8f0f4b637af3eeea7879",
-      ttTargetIdc: "alisg"
+      ttTargetIdc: "alisg",
     });
 
     tiktokConnection

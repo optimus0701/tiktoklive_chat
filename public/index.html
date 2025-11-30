@@ -550,7 +550,8 @@
         if (isOverlay) {
             document.body.classList.add('overlay-mode');
             if (savedUser && socket) {
-                socket.emit('join-room', { username: savedUser }); 
+                // SỬA THÀNH: Gửi trực tiếp biến savedUser (String)
+                socket.emit('join-room', savedUser); 
             }
         }
 
