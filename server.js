@@ -65,7 +65,6 @@ io.on("connection", (socket) => {
       processInitialData: false, // QUAN TRỌNG: Bỏ qua các tin nhắn cũ/lịch sử khi vừa kết nối
       enableExtendedGiftInfo: true, // Bật thông tin quà chi tiết (để lấy icon quà)
       enableWebsocketUpgrade: true,
-      disableEulerFallbacks: true,
       requestPollingIntervalMs: 2000,
       clientParams: {
         app_language: "vi-VN",
