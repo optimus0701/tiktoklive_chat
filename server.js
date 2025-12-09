@@ -2,9 +2,6 @@ const express = require("express");
 const http = require("http");
 const { Server } = require("socket.io");
 const { WebcastPushConnection } = require("tiktok-live-connector");
-const { SignConfig } = require("tiktok-live-connector");
-require("dotenv").config();
-
 const path = require("path");
 // Thêm thư viện google-tts-api
 // Bạn cần chạy: npm install google-tts-api
@@ -14,7 +11,6 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-SignConfig.apiKey = process.env.TIKTOK_SIGN_API_KEY;
 // Serve file static từ thư mục public
 app.use(express.static(path.join(__dirname, "public")));
 
@@ -46,17 +42,19 @@ io.on("connection", (socket) => {
   });
 
   // Lắng nghe sự kiện người dùng nhập Username từ frontend
-  socket.on("join-room", (data) => {
-    // FIX: Đảm bảo lấy đúng username dù client gửi String hay Object
-    const tiktokUsername =
-      typeof data === "object" && data.username ? data.username : data;
-
-    if (!tiktokUsername || typeof tiktokUsername !== "string") {
-      console.log("Username không hợp lệ:", tiktokUsername);
-      return;
-    }
+  socket.on("join-room", (tiktokUsername) => {
+    if (!tiktokUsername) return;
 
     console.log(`Đang kết nối tới: ${tiktokUsername}`);
+
+    if (tiktokConnection) {
+      try {
+        tiktokConnection.disconnect();
+      } catch (e) {
+        console.error("Lỗi ngắt kết nối cũ:", e);
+      }
+    }
+
     // Cập nhật cấu hình: Tối ưu hóa kết nối
     tiktokConnection = new WebcastPushConnection(tiktokUsername, {
       processInitialData: false, // QUAN TRỌNG: Bỏ qua các tin nhắn cũ/lịch sử khi vừa kết nối
@@ -67,8 +65,6 @@ io.on("connection", (socket) => {
         app_language: "vi-VN",
         device_platform: "web_pc",
       },
-      sessionId: process.env.SESSION_ID,
-      ttTargetIdc: process.env.TT_TARGET_IDC,
     });
 
     tiktokConnection
