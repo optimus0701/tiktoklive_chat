@@ -111,9 +111,15 @@ io.on("connection", (socket) => {
     tiktokConnection.on("share", (data) => {
       socket.emit("tiktok-event", { type: "share", data: data });
     });
-    // 6. Member tham gia (Thêm đoạn này vào server.js)
+    // 6. Member tham gia
     tiktokConnection.on("member", (data) => {
       socket.emit("tiktok-event", { type: "member", data: data });
+    });
+
+    // 7. Live kết thúc (stream bị tắt)
+    tiktokConnection.on("disconnected", () => {
+      console.log("TikTok Live đã kết thúc.");
+      socket.emit("live-ended");
     });
 
     socket.on("disconnect", () => {

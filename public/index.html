@@ -1153,6 +1153,7 @@
                 <label><input type="checkbox" id="chkTTSChat" onchange="handleTTSChatToggle(); saveSettings()"> Đọc
                     Chat</label>
                 <label><input type="checkbox" id="chkTTSGift" checked onchange="saveSettings()"> Đọc Quà</label>
+                <label><input type="checkbox" id="chkTTSFollow" onchange="saveSettings()"> Đọc Follow</label>
             </div>
 
             <div style="width: 100%; border-top: 1px solid #444; padding-top: 10px; margin-top: 5px;">
@@ -1169,10 +1170,18 @@
                 placeholder="Ví dụ: {nick} vừa gửi {count} cái {gift}" oninput="saveSettings()">
         </div>
 
+        <div style="width: 100%; margin-top: 5px;">
+            <div class="filter-label" style="display:block; margin-bottom:5px;">Mẫu câu đọc follow:</div>
+            <input type="text" id="followTemplate" value="Cảm ơn {nick} đã follow"
+                placeholder="Ví dụ: Cảm ơn {nick} đã follow channel" oninput="saveSettings()">
+        </div>
+
         <div style="width: 100%; margin-top: 10px; display:flex; gap:10px;">
             <button onclick="testVoice()" style="flex:1; padding: 8px;">Test Thử Giọng</button>
             <button onclick="testGift()" style="flex:1; padding: 8px; background-color: #2be265; color: #000;">Test
                 Tặng Quà</button>
+            <button onclick="testFollow()" style="flex:1; padding: 8px; background-color: #2b72e2; color: #fff;">Test
+                Follow</button>
         </div>
     </div>
     </div>
@@ -1255,7 +1264,9 @@
             enable: document.getElementById('chkEnableTTS'),
             chat: document.getElementById('chkTTSChat'),
             gift: document.getElementById('chkTTSGift'),
+            follow: document.getElementById('chkTTSFollow'),
             giftTemplate: document.getElementById('giftTemplate'),
+            followTemplate: document.getElementById('followTemplate'),
             muteLocal: document.getElementById('chkMuteLocal')
         };
 
@@ -1441,6 +1452,18 @@
             handleGiftEvent(mockData);
         }
 
+        function testFollow() {
+            const mockNickname = "Dominator";
+            addMessage(mockNickname, `đã follow chủ phòng ➕`, null, 'follow');
+            if (ttsConfig.enable.checked && ttsConfig.follow.checked) {
+                let followTtsText = ttsConfig.followTemplate.value || 'Cảm ơn {nick} đã follow';
+                followTtsText = followTtsText.replace(/{nick}/g, mockNickname);
+                speak(followTtsText, true);
+            } else {
+                alert("Vui lòng tích chọn 'Bật Đọc' và 'Đọc Follow' trước.");
+            }
+        }
+
         const isOverlay = urlParams.get('overlay') === 'true';
         const savedUser = urlParams.get('user');
 
@@ -1448,12 +1471,14 @@
             if (isOverlay) return;
             localStorage.setItem('tiktok_username', document.getElementById('usernameInput').value);
             localStorage.setItem('gift_template', document.getElementById('giftTemplate').value);
+            localStorage.setItem('follow_template', document.getElementById('followTemplate').value);
             for (const [key, el] of Object.entries(checkboxes)) {
                 localStorage.setItem('chk_' + key, el.checked);
             }
             localStorage.setItem('tts_enable', ttsConfig.enable.checked);
             localStorage.setItem('tts_chat', ttsConfig.chat.checked);
             localStorage.setItem('tts_gift', ttsConfig.gift.checked);
+            localStorage.setItem('tts_follow', ttsConfig.follow.checked);
             localStorage.setItem('tts_mute_local', ttsConfig.muteLocal.checked);
         }
 
@@ -1465,6 +1490,9 @@
             const savedTemplate = localStorage.getItem('gift_template');
             if (savedTemplate) document.getElementById('giftTemplate').value = savedTemplate;
 
+            const savedFollowTemplate = localStorage.getItem('follow_template');
+            if (savedFollowTemplate) document.getElementById('followTemplate').value = savedFollowTemplate;
+
             for (const [key, el] of Object.entries(checkboxes)) {
                 const saved = localStorage.getItem('chk_' + key);
                 if (saved !== null) el.checked = (saved === 'true');
@@ -1472,6 +1500,7 @@
             if (localStorage.getItem('tts_enable') !== null) ttsConfig.enable.checked = (localStorage.getItem('tts_enable') === 'true');
             if (localStorage.getItem('tts_chat') !== null) ttsConfig.chat.checked = (localStorage.getItem('tts_chat') === 'true');
             if (localStorage.getItem('tts_gift') !== null) ttsConfig.gift.checked = (localStorage.getItem('tts_gift') === 'true');
+            if (localStorage.getItem('tts_follow') !== null) ttsConfig.follow.checked = (localStorage.getItem('tts_follow') === 'true');
             if (localStorage.getItem('tts_mute_local') !== null) ttsConfig.muteLocal.checked = (localStorage.getItem('tts_mute_local') === 'true');
             updateFilters();
         }
@@ -1518,6 +1547,11 @@
             if (localStorage.getItem('tts_gift') !== null) {
                 ttsConfig.gift.checked = (localStorage.getItem('tts_gift') === 'true');
             }
+            if (localStorage.getItem('tts_follow') !== null) {
+                ttsConfig.follow.checked = (localStorage.getItem('tts_follow') === 'true');
+            }
+            const savedFollowTemplate = localStorage.getItem('follow_template');
+            if (savedFollowTemplate) ttsConfig.followTemplate.value = savedFollowTemplate;
             updateFilters();
         }
 
@@ -1658,9 +1692,24 @@
                 }
                 else if (event.type === 'gift') handleGiftEvent(data);
                 else if (event.type === 'like') addMessage(data.nickname, `đã thích livestream ❤️`, data.profilePictureUrl, 'like');
-                else if (event.type === 'follow') addMessage(data.nickname, `đã follow chủ phòng ➕`, data.profilePictureUrl, 'follow');
+                else if (event.type === 'follow') {
+                    addMessage(data.nickname, `đã follow chủ phòng ➕`, data.profilePictureUrl, 'follow');
+                    if (ttsConfig.follow.checked) {
+                        let followTtsText = ttsConfig.followTemplate.value || 'Cảm ơn {nick} đã follow';
+                        followTtsText = followTtsText.replace(/{nick}/g, data.nickname);
+                        speak(followTtsText, true);
+                    }
+                }
                 else if (event.type === 'share') addMessage(data.nickname, `đã chia sẻ livestream ↗️`, data.profilePictureUrl, 'share');
                 else if (event.type === 'member') addMessage(data.nickname, `đã tham gia livestream`, data.profilePictureUrl, 'member');
+            });
+
+            // Lắng nghe khi TikTok Live kết thúc
+            socket.on('live-ended', () => {
+                statusDiv.innerText = 'Live đã kết thúc.';
+                statusDiv.style.color = '#f44336';
+                addSystemMessage('⚠️ Live đã kết thúc hoặc bị ngắt kết nối.');
+                speak('Live đã kết thúc.');
             });
         }
 
