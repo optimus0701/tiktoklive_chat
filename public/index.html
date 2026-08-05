@@ -1655,6 +1655,10 @@
                         }
                     }, INITIAL_PHASE_DURATION);
 
+                } else if (res.status === 'reconnecting') {
+                    statusDiv.innerText = `⚠️ Đang tự động kết nối lại (${res.attempt}/${res.maxAttempts})...`;
+                    statusDiv.style.color = '#ff9800';
+                    addSystemMessage(`⚠️ Mất kết nối tạm thời, đang tự động thử lại (Lần ${res.attempt}/${res.maxAttempts})...`);
                 } else {
                     statusDiv.innerText = `Lỗi: ${res.message}`;
                     statusDiv.style.color = '#f44336';
